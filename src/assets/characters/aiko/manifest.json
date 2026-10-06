@@ -1,0 +1,33 @@
+{
+  "id": "aiko",
+  "name": "Aiko",
+  "version": "1.0.0",
+  "description": "Teal-haired chibi companion pack with 16 cursor-state illustrations.",
+  "preview": "Chibi Teal Idol with Play Icon.png",
+  "platforms": [
+    "windows",
+    "macos"
+  ],
+  "states": {
+    "normal": "Chibi Teal Idol with Play Icon.png",
+    "help": "Puzzled Chibi Miku Sticker.png",
+    "working": "Chibi Miku Back View with Loading Ring.png",
+    "busy": "Tired Chibi Miku with Hourglass.png",
+    "precision": "Chibi Miku with Turquoise Plus Sign.png",
+    "text": "Chibi Miku Typing with Floating I.png",
+    "handwriting": "Grumpy Cyan Chibi Artist Sticker.png",
+    "unavailable": "Grumpy Aqua Chibi with No Symbol.png",
+    "move": "Bored Chibi Miku with Cyan Arrows.png",
+    "horizontal": "Chibi Teal Twin-Tail Idol Sticker.png",
+    "diagonal": "Smug Chibi Mermaid-Tailed Idol.png",
+    "alternate": "Chibi Cyan Anime Girl Sticker.png",
+    "vertical": "Sleeping Teal-Haired Chibi Sticker.png",
+    "diagonalSecondary": "Bored Chibi Cyan Twin-Tail Sticker.png",
+    "link": "Chibi Aqua Idol with Play Button.png",
+    "extra": "Chibi Miku with Floating Teal Cursor.png"
+  },
+  "metadata": {
+    "assetMapping": "User-supplied image order, matched to the 16 required states.",
+    "assetKind": "static-images"
+  }
+}

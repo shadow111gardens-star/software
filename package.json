@@ -1,0 +1,47 @@
+{
+  "name": "anime-cursor",
+  "version": "0.1.0",
+  "description": "Offline Anime Cursor desktop foundation",
+  "main": "dist/electron/main.cjs",
+  "scripts": {
+    "dev": "npm run build:electron && concurrently -k \"vite\" \"wait-on http://127.0.0.1:5173 && node scripts/run-electron.mjs --development\"",
+    "build:electron": "node scripts/build-electron.mjs",
+    "typecheck": "tsc --noEmit",
+    "build": "npm run typecheck && npm run build:electron && vite build",
+    "start": "node scripts/run-electron.mjs",
+    "smoke": "node scripts/run-electron.mjs --smoke-test",
+    "check:storage": "node scripts/check-storage.mjs",
+    "test": "node scripts/test-characters.mjs && node scripts/test-cursor.mjs && node scripts/test-companion.mjs && node scripts/test-state.mjs && node scripts/test-flow.mjs && npm run check:storage",
+    "test:electron": "npm run build:electron && node scripts/test-characters-electron.mjs",
+    "test:cursor": "node scripts/test-cursor.mjs",
+    "check:cursor": "npm run build && node scripts/run-electron.mjs --cursor-check",
+    "test:companion": "node scripts/test-companion.mjs",
+    "smoke:overlay": "node scripts/run-electron.mjs --overlay-smoke",
+    "check:overlay": "npm run build && node scripts/run-electron.mjs --overlay-check",
+    "test:state": "node scripts/test-state.mjs",
+    "smoke:state": "node scripts/run-electron.mjs --state-smoke",
+    "check:state": "npm run build && node scripts/run-electron.mjs --state-check",
+    "test:flow": "node scripts/test-flow.mjs",
+    "check:flow": "npm run build && node scripts/test-flow-electron.mjs"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "private": true,
+  "devDependencies": {
+    "@types/node": "^26.6.4",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "concurrently": "^10.0.5",
+    "electron": "^44.5.1",
+    "esbuild": "^0.28.2",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.3",
+    "wait-on": "^9.5.1"
+  },
+  "type": "module"
+}
