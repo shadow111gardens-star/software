@@ -8,6 +8,7 @@ import type { CompanionController } from '../../services/companion/companion-con
 import type { CursorStateEngine } from '../../services/state/cursor-state-engine';
 import type { CursorTrackingService } from '../../services/cursor/cursor-tracking-service';
 import { CURSOR_STATES } from '../../shared/constants/cursor-states';
+import { validateNativeClassification } from './native-classification-validation';
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 async function until(check: () => boolean, timeout = 10000): Promise<void> { const end = Date.now() + timeout; while (!check()) { if (Date.now() > end) throw new Error('State validation timed out'); await delay(25); } }
 export async function validateStates(main: BrowserWindow, companion: CompanionController, engine: CursorStateEngine, cursor: CursorTrackingService, characters: CharacterManager, live: boolean): Promise<void> {
@@ -41,6 +42,7 @@ export async function validateStates(main: BrowserWindow, companion: CompanionCo
     const invalidRejected = await main.webContents.executeJavaScript(`window.animeCursor.state.setOverride('seventeenth').then(() => false, () => true)`); assert.equal(invalidRejected, true);
     await main.webContents.executeJavaScript('window.animeCursor.state.setOverride(null)');
     assert.equal(engine.manager.getSnapshot().override, null);
+    const nativeClassification = await validateNativeClassification(main, overlay, engine, companion, characters);
     const observed = new Set<string>(); const remove = engine.manager.subscribe(state => { const snapshot = engine.manager.getSnapshot(); if (snapshot.override === null) { observed.add(state); console.info(`[state-check] AUTO ${state} (${snapshot.source})`); } });
     try {
       if (live) {
@@ -60,10 +62,10 @@ export async function validateStates(main: BrowserWindow, companion: CompanionCo
       const flags = JSON.parse(stdout); assert.equal(flags.clickThrough, true); assert.equal(flags.noActivate, true); assert.equal(flags.layered, true); nativeFlags = flags;
     }
     const automatic = engine.manager.getSnapshot();
-    companion.stop(); assert.equal(overlay.isDestroyed(), true); assert.equal(engine.manager.getCurrentState(), 'normal'); assert.equal(engine.manager.getSnapshot().override, null);
+    companion.stop(); assert.equal(overlay.isDestroyed(), true); assert.equal(engine.manager.getCurrentState(), 'extra'); assert.equal(engine.manager.getSnapshot().override, null);
     await companion.start(); assert.equal(companion.getSnapshot().status, 'running'); companion.stop();
     assert.equal(BrowserWindow.getAllWindows().filter(window => window.getTitle() === 'Anime Cursor Companion').length, 0);
-    const result = { passed: true, checks, nativeFlags, automatic, observedAutomaticStates: [...observed], cleanup: true };
+    const result = { passed: true, checks, nativeClassification, nativeFlags, automatic, observedAutomaticStates: [...observed], cleanup: true };
     await writeFile('dist/validation/state-result.json', JSON.stringify(result, null, 2)); console.info(`[state-check] RESULT ${JSON.stringify(result)}`);
   } catch (error) { console.error('[state-check] FAILED', error); code = 1; }
   finally { companion.dispose(); cursor.dispose(); app.exit(code); }

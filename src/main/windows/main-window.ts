@@ -1,9 +1,10 @@
-import { BrowserWindow, session } from 'electron';
+import { BrowserWindow, screen, session } from 'electron';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 export function createMainWindow(development: boolean, showOnReady = true): BrowserWindow {
   const entry = development ? 'http://127.0.0.1:5173/' : pathToFileURL(join(__dirname, '../renderer/index.html')).href;
-  const window = new BrowserWindow({ width: 1100, height: 740, minWidth: 600, minHeight: 480, frame: false, show: false, backgroundColor: '#171923', webPreferences: { preload: join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true } });
+  const workArea = screen.getPrimaryDisplay().workAreaSize;
+  const window = new BrowserWindow({ width: Math.min(1280, workArea.width), height: Math.min(800, workArea.height), minWidth: 600, minHeight: 480, frame: false, show: false, backgroundColor: '#101421', webPreferences: { preload: join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true } });
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   window.webContents.on('will-navigate', (event, url) => { if (url !== entry) event.preventDefault(); });
   session.defaultSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));

@@ -5,6 +5,7 @@ import type { CursorContext } from '../../shared/types/state';
 import { StateManager } from './state-manager';
 import { StateDetector } from './state-detector';
 import { resourceState } from '../../platform/windows/cursor-resource-map';
+import { WINDOWS_CURSOR_RESOURCES } from '../../platform/windows/cursor-resource-map';
 import { CharacterStateResolver } from '../../services/characters/character-state-resolver';
 import type { CharacterPack } from '../../shared/types/character';
 import type { CharacterAsset } from '../../shared/types/character';
@@ -36,33 +37,59 @@ function context(state: unknown = 'normal', reliable = true): CursorContext {
 test('authoritative exact 16 states; invalid values cannot become a state', () => {
   const manager = new StateManager(); assert.equal(CURSOR_STATES.length, 16);
   for (const state of CURSOR_STATES) { manager.update(context(state)); assert.equal(manager.getCurrentState(), state); }
-  for (const invalid of ['seventeenth', 'unknown', undefined, null, 3]) { assert.equal(isCursorState(invalid), false); manager.update(context(invalid)); assert.equal(manager.getCurrentState(), 'normal'); }
+  for (const invalid of ['seventeenth', 'unknown', undefined, null, 3]) { assert.equal(isCursorState(invalid), false); const sample = context(null); sample.semantic.state = invalid as CursorState; manager.update(sample); assert.equal(manager.getCurrentState(), 'extra'); }
 });
-test('movement cannot determine semantics; unknown/stale/unreliable/inactive use normal', () => {
+test('movement cannot determine semantics; unknown/stale/unreliable/inactive use extra', () => {
   const detector = new StateDetector();
-  assert.equal(detector.detect(context(null)).state, 'normal');
-  assert.equal(detector.detect(context('busy', false)).state, 'normal');
-  assert.equal(detector.detect({ ...context('text'), timestamp: 5000 }).state, 'normal');
-  assert.equal(detector.detect({ ...context('text'), trackingStatus: 'stopped' }).state, 'normal');
-  const failed = context('text'); failed.semantic.error = 'native failure'; assert.equal(detector.detect(failed).state, 'normal');
+  assert.equal(detector.detect(context(null)).state, 'extra');
+  assert.equal(detector.detect(context('busy', false)).state, 'extra');
+  assert.equal(detector.detect({ ...context('text'), timestamp: 5000 }).state, 'extra');
+  assert.equal(detector.detect({ ...context('text'), trackingStatus: 'stopped' }).state, 'extra');
+  const failed = context('text'); failed.semantic.error = 'native failure'; assert.equal(detector.detect(failed).state, 'extra');
 });
 test('state changes notify once; duplicate subscription, unsubscribe and reset are deterministic', () => {
   const manager = new StateManager(); const events: string[] = []; const listener = (state: CursorState) => events.push(state);
   manager.subscribe(listener); manager.subscribe(listener);
   manager.update(context()); manager.update(context('text')); manager.update(context('text')); manager.update(context('link')); manager.reset(); manager.reset();
-  assert.deepEqual(events, ['text', 'link', 'normal']);
-  manager.unsubscribe(listener); manager.update(context('busy')); assert.equal(events.length, 3);
+  assert.deepEqual(events, ['normal', 'text', 'link', 'extra']);
+  manager.unsubscribe(listener); manager.update(context('busy')); assert.equal(events.length, 4);
 });
 test('override has priority, AUTO restores current semantic context, inactive resets displayed state', () => {
   const manager = new StateManager(); manager.update(context('text')); manager.setOverride('extra'); manager.update(context('link'));
   assert.equal(manager.getCurrentState(), 'extra'); assert.equal(manager.getSnapshot().source, 'development-override');
   manager.setOverride(null); assert.equal(manager.getCurrentState(), 'link');
-  manager.setOverride('diagonalSecondary'); manager.update({ ...context('text'), trackingStatus: 'stopped' }); assert.equal(manager.getCurrentState(), 'normal');
-  manager.reset(); assert.equal(manager.getSnapshot().override, null); manager.setOverride('invalid'); assert.equal(manager.getCurrentState(), 'normal');
+  manager.setOverride('diagonalSecondary'); manager.update({ ...context('text'), trackingStatus: 'stopped' }); assert.equal(manager.getCurrentState(), 'extra');
+  manager.reset(); assert.equal(manager.getSnapshot().override, null); manager.setOverride('invalid'); assert.equal(manager.getCurrentState(), 'extra');
 });
 test('Windows resource mappings are semantic; diagonal identities stay distinct', () => {
   assert.equal(resourceState(32513), 'text'); assert.equal(resourceState(32649), 'link'); assert.equal(resourceState(32650), 'working');
   assert.equal(resourceState(32642), 'diagonal'); assert.equal(resourceState(32643), 'diagonalSecondary'); assert.equal(resourceState(123456), null);
+});
+test('all 15 native resources resolve correctly; custom or unsupported resources use extra', () => {
+  const detector = new StateDetector();
+  assert.equal(Object.keys(WINDOWS_CURSOR_RESOURCES).length, 15);
+  for (const [id, expected] of Object.entries(WINDOWS_CURSOR_RESOURCES)) {
+    assert.equal(detector.detect(context(resourceState(Number(id)))).state, expected);
+  }
+  assert.equal(detector.detect(context(resourceState(32512))).state, 'normal');
+  for (const id of [0, 123456, -1, 'custom', undefined]) {
+    assert.equal(detector.detect(context(resourceState(id), false)).state, 'extra');
+  }
+});
+test('movement speed/direction never substitutes semantics; diagnostics retain detection under override', () => {
+  const manager = new StateManager();
+  for (const movement of [{ dx: 0, dy: 0, distance: 0, speed: 0 }, { dx: -1000, dy: 800, distance: 1280, speed: 90000 }]) {
+    manager.update({ ...context('normal'), movement }); assert.equal(manager.getCurrentState(), 'normal');
+    manager.update({ ...context(null, false), movement }); assert.equal(manager.getCurrentState(), 'extra');
+  }
+  assert.equal(manager.getSnapshot().reason, 'unrecognized/unsupported cursor');
+  for (const state of CURSOR_STATES) {
+    manager.setOverride(state); assert.equal(manager.getCurrentState(), state);
+    assert.equal(manager.getSnapshot().detectedState, 'extra');
+  }
+  manager.setOverride(null); assert.equal(manager.getCurrentState(), 'extra');
+  manager.update(context('normal')); assert.equal(manager.getCurrentState(), 'normal');
+  assert.equal(manager.getSnapshot().reason, 'recognized OS cursor');
 });
 test('resolver delegates every state, caches successful assets and keys active character identity', async () => {
   let id = 'future'; const calls: string[] = [];
@@ -85,11 +112,11 @@ test('all 16 assets update one overlay and retain position; AUTO and character r
   f.changeCharacter(); await f.controller.refresh(); assert.equal(f.content()?.characterId, 'new-character'); assert.equal(f.content()?.state, 'text'); assert.equal(f.counts().created, 1);
   f.controller.dispose(); f.cursor.dispose();
 });
-test('stop/reset/restart clean state listeners and native sampler; tracking stop/resume resets normal', async () => {
+test('stop/reset/restart clean state listeners and native sampler; tracking stop/resume uses extra until recognized', async () => {
   const f = companionFixture(); await f.controller.start(); f.engine.start(); assert.equal(f.counts().starts, 1);
-  f.cursor.stop(); f.tick(); await flush(); assert.equal(f.engine.manager.getCurrentState(), 'normal'); assert.equal(f.counts().stops, 1);
+  f.cursor.stop(); f.tick(); await flush(); assert.equal(f.engine.manager.getCurrentState(), 'extra'); assert.equal(f.counts().stops, 1);
   f.cursor.start(); f.tick(); await flush(); assert.equal(f.engine.manager.getCurrentState(), 'text'); assert.equal(f.counts().starts, 2);
-  f.controller.stop(); assert.equal(f.engine.manager.getCurrentState(), 'normal'); assert.equal(f.engine.manager.getSnapshot().override, null);
+  f.controller.stop(); assert.equal(f.engine.manager.getCurrentState(), 'extra'); assert.equal(f.engine.manager.getSnapshot().override, null);
   f.engine.manager.setOverride('extra'); await flush(); assert.equal(f.counts().destroyed, 1);
   await f.controller.start(); f.engine.manager.setOverride('link'); await flush(); assert.equal(f.content()?.state, 'link'); assert.equal(f.counts().created, 2);
   f.controller.dispose(); assert.equal(f.counts().starts, f.counts().stops); f.cursor.dispose();
@@ -102,7 +129,7 @@ test('out-of-order asset reads cannot overwrite the latest state or resurrect st
 });
 test('hidden companion still resets state and pauses semantic sampling when tracking stops', async () => {
   const f = companionFixture(); await f.controller.start(); f.controller.hide();
-  f.cursor.stop(); await flush(); assert.equal(f.engine.manager.getCurrentState(), 'normal'); assert.equal(f.counts().stops, 1);
+  f.cursor.stop(); await flush(); assert.equal(f.engine.manager.getCurrentState(), 'extra'); assert.equal(f.counts().stops, 1);
   f.controller.stop(); const starts = f.counts().starts; f.cursor.start(); assert.equal(f.counts().starts, starts);
   f.controller.dispose(); f.cursor.dispose();
 });

@@ -1,4 +1,4 @@
-import { Tray, Menu, nativeImage, type MenuItemConstructorOptions } from 'electron';
+﻿import { Tray, Menu, nativeImage, type MenuItemConstructorOptions } from 'electron';
 import type { TrayAdapter } from '../types';
 import type { AppPage, CompanionAction } from '../../shared/types/local-flow';
 import type { LocalAppFlow } from '../../services/app/local-app-flow';
@@ -36,7 +36,7 @@ export class ElectronTrayAdapter implements TrayAdapter {
       { id: 'pause-companion', label: 'Pause Companion', click: action('pause') },
       { id: 'resume-companion', label: 'Resume Companion', enabled: !!snapshot.catalog.activeCharacterId, click: action('resume') },
       { id: 'change-character', label: 'Change Character', submenu: [
-        { id: 'open-characters', label: 'Open Characters', click: () => this.actions.show('characters') },
+        { id: 'open-store', label: 'Open Store', click: () => this.actions.show('store') },
         ...snapshot.catalog.characters.map(pack => ({ id: `character-${pack.id}`, label: pack.name, type: 'radio' as const, checked: pack.id === snapshot.catalog.activeCharacterId, click: () => this.run(() => this.flow.activate(pack.id)) })),
       ] },
       { id: 'settings', label: 'Settings', click: () => this.actions.show('settings') }, { type: 'separator' },
@@ -49,3 +49,4 @@ export class ElectronTrayAdapter implements TrayAdapter {
   isCreated(): boolean { return !!this.tray && !this.tray.isDestroyed(); }
   dispose(): void { this.remove?.(); this.remove = null; this.tray?.destroy(); this.tray = null; this.menu = null; }
 }
+

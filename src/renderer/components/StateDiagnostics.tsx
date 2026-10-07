@@ -30,6 +30,7 @@ export function StateDiagnostics() {
   if (!state) return null;
   const select = (value: string) => { setCycling(false); void window.animeCursor.state.setOverride(value === 'AUTO' ? null : value as CursorState).then(setState).catch(failure => setError(String(failure))); };
   return <section aria-label="Development state diagnostics"><h2>State diagnostics (development only)</h2>
+    <p>Detected state: <strong>{state.detectedState}</strong><br/>Reason: {state.reason}</p>
     <p>Current state: <strong>{state.state}</strong> · Source: {state.source} · Mode: {state.override ?? 'AUTO'}</p>
     <label>Override <select value={state.override ?? 'AUTO'} onChange={event => select(event.target.value)}><option value="AUTO">AUTO</option>{CURSOR_STATES.map(value => <option key={value} value={value}>{value}</option>)}</select></label>
     <button onClick={() => select('AUTO')}>Return to AUTO</button><button onClick={() => setCycling(value => !value)}>{cycling ? 'Pause cycle' : 'Cycle 16 states'}</button>

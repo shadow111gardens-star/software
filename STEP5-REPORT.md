@@ -1,3 +1,5 @@
+> Correction applied 2026-10-07: extra is the automatic fallback for unrecognized or unsupported native cursor contexts. See STEP5-CORRECTION-REPORT.md for live custom-cursor verification.
+
 # Phase 1 — Step 5: 16-state cursor engine
 
 Implemented the local state pipeline using the existing cursor service, CharacterManager, Aiko artwork and overlay. The real cursor is never changed. No backend, online catalog, accounts, payments, UI polish or Step 6 work was added. No npm dependencies changed.
@@ -5,15 +7,15 @@ Implemented the local state pipeline using the existing cursor service, Characte
 ## Files created
 
 - `src/shared/types/state.ts` — normalized semantic sample, cursor context, diagnostics and adapter contracts.
-- `src/engine/state/state-detector.ts` — reliable semantic detection and normal fallback.
+- `src/engine/state/state-detector.ts` — reliable semantic detection and extra fallback.
 - `src/engine/state/state-manager.ts` — current state, deterministic priority, deduplicated subscriptions, reset and manual override.
-- `src/engine/state/state.test.ts` — 11 state/resolver/controller tests.
+- `src/engine/state/state.test.ts` — 13 state/resolver/controller tests.
 - `src/services/state/cursor-state-engine.ts` — context construction and lifecycle using existing tracking/cache/frame updates.
 - `src/services/characters/character-state-resolver.ts` — cached CharacterManager resolution; existing fallback retained.
 - `src/platform/windows/cursor-resource-map.ts` — Win32 cursor resource mapping.
 - `src/platform/windows/semantic-cursor-adapter.ts` — bounded native helper protocol, normalization, heartbeat/error handling and cleanup.
 - `src/platform/windows/native/CursorContext.cs` — read-only global cursor handle sampler.
-- `src/platform/macos/semantic-cursor-adapter.ts` — explicit unavailable semantic adapter returning normal fallback.
+- `src/platform/macos/semantic-cursor-adapter.ts` — explicit unavailable semantic adapter returning extra fallback.
 - `src/main/state/index.ts` — platform factory and restricted development IPC.
 - `src/main/state/validation.ts` — real Electron all-state/live checks.
 - `src/renderer/components/StateDiagnostics.tsx` — temporary override/AUTO/cycle diagnostics.
@@ -68,22 +70,22 @@ The unchanged authoritative CURSOR_STATES constant defines exactly these 16 iden
 | vertical | IDC_SIZENS / 32645 |
 | diagonalSecondary | IDC_SIZENESW / 32643 |
 | link | IDC_HAND / 32649 |
-| extra | No unambiguous predefined mapping; development verification only |
+| extra | Fallback for unrecognized/unsupported native cursor contexts; also manually selectable |
 
 The helper reads the global handle/visibility via GetCursorInfo and compares against shared predefined handles returned by LoadCursorW. It reloads those handles during sampling so it does not retain a stale theme-handle table. Multiple matching identifiers are treated as unknown. The Win32 position fields are discarded. These APIs are read-only for this use; no ShowCursor, SetCursor, SetSystemCursor, input hooks or synthetic input are used. See Microsoft's [GetCursorInfo](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getcursorinfo), [LoadCursorW](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-loadcursorw) and [cursor reference](https://learn.microsoft.com/en-us/windows/win32/menurc/about-cursors).
 
-The hidden helper samples at 20 Hz, emits changes plus a one-second heartbeat, and exits when its owning Electron process exits. Stop terminates it directly. Malformed protocol, unexpected exit or stale heartbeat safely disables detection until restart; native read failures use normal and log a useful error. No PowerShell host remains running in production. Windows build uses the installed .NET Framework 4.x compiler; runtime needs .NET Framework 4.x. Installer packaging must place the helper outside ASAR. Installer work is out of scope.
+The hidden helper samples at 20 Hz, emits changes plus a one-second heartbeat, and exits when its owning Electron process exits. Stop terminates it directly. Malformed protocol, unexpected exit or stale heartbeat safely disables detection until restart; native read failures use extra and log a useful error. No PowerShell host remains running in production. Windows build uses the installed .NET Framework 4.x compiler; runtime needs .NET Framework 4.x. Installer packaging must place the helper outside ASAR. Installer work is out of scope.
 
-macOS has a separate adapter with the same normalized contract. It explicitly supplies no reliable global semantic information, so AUTO is normal. It does not misuse the app's own NSCursor as another process's cursor or request input-monitoring privileges. macOS runtime testing was not performed.
+macOS has a separate adapter with the same normalized contract. It explicitly supplies no reliable global semantic information, so AUTO is extra. It does not misuse the app's own NSCursor as another process's cursor or request input-monitoring privileges. macOS runtime testing was not performed.
 
 ## Priority, override and invalid input
 
-1. Inactive/error/unsupported tracking resolves to normal and pauses semantic sampling.
+1. Inactive/error/unsupported tracking resolves to extra and pauses semantic sampling.
 2. During active tracking, a development override has priority over automatic detection.
 3. AUTO accepts only a valid, reliable, error-free platform state with a fresh timestamp.
-4. Missing, hidden, custom, ambiguous, unsupported, invalid or stale semantic information falls back to normal.
+4. Missing, hidden, custom, ambiguous, unsupported, invalid or stale semantic information falls back to extra.
 
-There is a single actual cursor-handle signal, so no arbitrary multi-signal tie-breaking is needed. diagonal and diagonalSecondary remain distinct. Unknown inputs never reach CharacterManager as arbitrary strings. IPC rejects invalid overrides; internal invalid override values normalize to normal. Stop resets manager state and override, removes state/status subscribers, and destroys the overlay. Repeated subscription of the same listener is deduplicated.
+There is a single actual cursor-handle signal, so no arbitrary multi-signal tie-breaking is needed. diagonal and diagonalSecondary remain distinct. Unknown inputs never reach CharacterManager as arbitrary strings. IPC rejects invalid overrides; internal invalid override values return to AUTO. Stop resets manager state to extra and clears override, removes state/status subscribers, and destroys the overlay. Repeated subscription of the same listener is deduplicated.
 
 The development panel provides AUTO, all 16 selections, a repeatable cycle and diagnostics for current state/source/override, character/resolved state slot, cursor and tracking status. It refreshes at most four times per second with no overlapping read loop. Overrides remain in memory and are not written to settings. Normal production launches and packaged builds deny override operations and return no diagnostic snapshot. Explicit unpackaged validation flags temporarily enable the same test controls.
 
@@ -116,9 +118,9 @@ Expected negative-test logs include invalid override rejection, production overr
 
 The helper binary was 5120 bytes. During the live check its working set was approximately 14–15 MB and process CPU was about 0.25 seconds at the later read. These are spot observations, not a long-duration benchmark. Main/renderer total CPU, memory and GPU costs were not profiled for this step. Sampling uses sleeps, change-only notifications and bounded data; movement causes no image-resolution IPC or React renders. Asset cache memory grows with the active pack's resolved states and is cleared on refresh.
 
-Custom/copied cursor handles, application-drawn/software cursors, some animated/theme variants, hidden/suppressed cursors, secure desktops and nonstandard application cursor implementations can remain normal. Extra has no automatic mapping. Short cursor changes between 50 ms samples can be missed. The engine supports all assets; it does not claim every application exposes all 16 semantic states.
+Custom/copied cursor handles, application-drawn/software cursors, some animated/theme variants, hidden/suppressed cursors, secure desktops and nonstandard application cursor implementations resolve to extra when native semantics cannot be classified reliably. Extra is the automatic fallback, not a movement state. Short cursor changes between 50 ms samples can be missed. The engine supports all assets; it does not claim every application exposes all 16 semantic states.
 
-Windows was tested on one monitor at 125% scaling. Physical multi-monitor/mixed-DPI and other scale settings remain unverified; geometry continues to use the Step 4 DIP implementation. macOS automatic semantics intentionally fall back to normal, and macOS runtime remains untested. Manual confirmation of real-cursor visibility, click/drag/scroll/text-selection beneath the artwork and perceived movement/flicker across applications is still pending. Native flag checks support intended interaction behavior but do not replace that user test.
+Windows was tested on one monitor at 125% scaling. Physical multi-monitor/mixed-DPI and other scale settings remain unverified; geometry continues to use the Step 4 DIP implementation. macOS automatic semantics intentionally fall back to extra, and macOS runtime remains untested. Manual confirmation of real-cursor visibility, click/drag/scroll/text-selection beneath the artwork and perceived movement/flicker across applications is still pending. Native flag checks support intended interaction behavior but do not replace that user test.
 
 ## Exact next step
 

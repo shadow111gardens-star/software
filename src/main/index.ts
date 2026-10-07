@@ -16,6 +16,7 @@ import { registerCharacterIPC } from './characters/ipc';
 import { app, BrowserWindow, ipcMain, session, type IpcMainInvokeEvent } from 'electron';
 import { join, resolve, sep } from 'node:path';
 import { tmpdir } from 'node:os';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { createMainWindow } from './windows/main-window';
 import { getPlatform } from './platform';
 import { LocalSettingsStore } from '../services/storage/settings-store';
@@ -33,12 +34,19 @@ const flowCheck = !!flowPhase;
 let flowProfile: string | undefined;
 if (flowCheck) {
   const raw = process.argv.find(value => value.startsWith('--flow-profile='))?.slice('--flow-profile='.length);
-  if (!raw || !['first', 'restart', 'paused'].includes(flowPhase!)) throw new Error('Invalid flow validation profile');
+  if (!raw || !['onboarding', 'onboarding-restart', 'first', 'restart', 'paused', 'store-empty'].includes(flowPhase!)) throw new Error('Invalid flow validation profile');
   flowProfile = resolve(raw);
   if (!flowProfile.startsWith(resolve(tmpdir()) + sep) || !flowProfile.includes('anime-cursor-flow-check-')) throw new Error('Flow checks require an isolated temporary profile');
   app.setPath('userData', flowProfile);
 }
 const validation = smoke || cursorCheck || overlayCheck || overlaySmoke || stateSmoke || stateCheck || flowCheck;
+if (validation && !flowCheck) {
+  const supplied = process.argv.find(value => value.startsWith('--validation-profile='))?.slice('--validation-profile='.length);
+  const isolated = supplied ? resolve(supplied) : mkdtempSync(join(tmpdir(), 'anime-cursor-validation-'));
+  if (!isolated.startsWith(resolve(tmpdir()) + sep) || !isolated.includes('anime-cursor-validation-')) throw new Error('Validation requires a temporary profile');
+  app.setPath('userData', isolated);
+  if (!supplied) app.on('quit', () => { try { rmSync(isolated, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); } catch { console.warn('[validation] Temporary profile cleanup deferred.'); } });
+}
 let mainWindow: BrowserWindow | null = null;
 let quitting = false;
 let reopenMain: () => void = () => undefined;

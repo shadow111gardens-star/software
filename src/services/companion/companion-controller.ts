@@ -83,7 +83,16 @@ export class CompanionController {
       this.snapshot.status = 'running';
       this.removeState = this.dependencies.stateEngine?.manager.subscribe(next => { void this.switchAsset(next); }) ?? null;
       this.displayed = null; this.displayId = null;
-      this.update(true);
+      // Compute initial bounds without showing a companion saved as hidden.
+      this.update(true, settings.companionVisible);
+      if (!settings.companionVisible && this.snapshot.status === 'running') {
+        this.snapshot.visible = false; this.snapshot.status = 'hidden';
+      }
+      if (this.snapshot.status === 'hidden') {
+        const latest = this.dependencies.stateEngine?.manager.getCurrentState() ?? state;
+        if (latest !== state) void this.switchAsset(latest);
+        return this.getSnapshot();
+      }
       if (this.snapshot.status !== 'running') return this.getSnapshot();
       this.unsubscribe = this.dependencies.cursor.subscribe(({ position }) => { this.target = position; });
       this.lastFrame = this.dependencies.frames.now();
@@ -94,7 +103,7 @@ export class CompanionController {
     } catch (error) { if (current()) this.fail(String(error)); }
     return this.getSnapshot();
   }
-  private update(snap = false): void {
+  private update(snap = false, allowShow = true): void {
     if (!this.overlay || !this.settings || !this.image || this.snapshot.status !== 'running') return;
     try {
       this.dependencies.stateEngine?.tick();
@@ -111,7 +120,7 @@ export class CompanionController {
       const bounds = clampBounds({ ...target, ...this.displayed }, area);
       if (!this.snapshot.bounds || Object.keys(bounds).some(key => bounds[key as keyof OverlayBounds] !== this.snapshot.bounds![key as keyof OverlayBounds])) this.overlay.setBounds(bounds);
       this.snapshot.bounds = bounds;
-      if (!this.snapshot.visible) { this.overlay.show(); this.snapshot.visible = true; }
+      if (allowShow && !this.snapshot.visible) { this.overlay.show(); this.snapshot.visible = true; }
     } catch (error) { this.fail(String(error)); }
   }
   private async switchAsset(state: CursorState): Promise<void> {

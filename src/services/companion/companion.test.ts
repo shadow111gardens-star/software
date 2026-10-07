@@ -15,7 +15,7 @@ class Port implements OverlayAdapter {
   async load(content: OverlayContent): Promise<void> { this.content = content; }
   async update(content: OverlayContent): Promise<void> { this.content = content; }
   setBounds(bounds: OverlayBounds): void { this.moves.push({ ...bounds }); }
-  show(): void { this.visible = true; } hide(): void { this.visible = false; }
+  shows = 0; show(): void { this.shows++; this.visible = true; } hide(): void { this.visible = false; }
   dispose(): void { this.disposed = true; this.visible = false; }
   onFailure(callback: (message: string) => void): void { this.failure = callback; }
 }
@@ -35,7 +35,7 @@ function fixture() {
   }, cursor, settings: async () => settings, dimensions: () => ({ width: 200, height: 100 }), display: () => area,
   createOverlay: () => { const port = new Port(); ports.push(port); return port; },
   frames: { start: callback => { frame = callback; frames++; return frames; }, stop: () => { frame = null; }, now: () => now }, log: () => undefined });
-  return { controller, cursor, ports, states, tick: () => { now += 16; frame?.(); }, move: (x: number, y: number, nextArea = area) => { area = nextArea; cursorPoint = { ...cursorPoint, x, y, timestamp: cursorPoint.timestamp + 1, displayId: area.id }; sample?.(); }, noCharacter: () => { character = null; }, missing: () => { missing = true; }, changeCharacter: () => { character = { ...character!, id: 'future-pack' }; }, changeSettings: () => { settings = { ...settings, characterSize: 150, opacity: 0.6 }; }, hasFrame: () => frame !== null };
+  return { controller, cursor, ports, states, tick: () => { now += 16; frame?.(); }, move: (x: number, y: number, nextArea = area) => { area = nextArea; cursorPoint = { ...cursorPoint, x, y, timestamp: cursorPoint.timestamp + 1, displayId: area.id }; sample?.(); }, noCharacter: () => { character = null; }, missing: () => { missing = true; }, changeCharacter: () => { character = { ...character!, id: 'future-pack' }; }, changeSettings: () => { settings = { ...settings, characterSize: 150, opacity: 0.6 }; }, hideOnStartup: () => { settings = { ...settings, companionVisible: false }; }, hasFrame: () => frame !== null };
 }
 test('dimensions retain aspect ratio, padding and display fit', () => {
   const area = { x: 0, y: 0, width: 80, height: 60, id: 'small' };
@@ -51,6 +51,19 @@ test('screen edge flip and clamp keep window inside left/above monitors', () => 
     for (const point of [{ x: area.x, y: area.y }, { x: area.x + area.width - 1, y: area.y + area.height - 1 }]) {
       const bounds = cursorOverlayBounds({ ...point, displayId: area.id, timestamp: 0, scaleFactor: 1.75, source: 'windows-system' }, { x: 20, y: 20 }, { width: 96, height: 90 }, area);
       assert.ok(bounds.x >= area.x && bounds.y >= area.y && bounds.x + bounds.width <= area.x + area.width && bounds.y + bounds.height <= area.y + area.height);
+    }
+  }
+});
+test('all display edges preserve DIP geometry at 100, 125 and 150 percent scaling', () => {
+  for (const scaleFactor of [1, 1.25, 1.5]) {
+    for (const area of [{x:0,y:0,width:1536,height:816,id:'primary'}, {x:-1920,y:0,width:1920,height:1080,id:'left'}, {x:0,y:-1080,width:1920,height:1080,id:'above'}]) {
+      for (const x of [area.x, area.x+area.width/2, area.x+area.width-1]) {
+        for (const y of [area.y, area.y+area.height/2, area.y+area.height-1]) {
+          const bounds=cursorOverlayBounds({x,y,displayId:area.id,timestamp:0,scaleFactor,source:'windows-system'}, {x:20,y:20}, {width:96,height:90}, area);
+          assert.equal(bounds.width,100); assert.equal(bounds.height,94);
+          assert.ok(bounds.x>=area.x&&bounds.y>=area.y&&bounds.x+bounds.width<=area.x+area.width&&bounds.y+bounds.height<=area.y+area.height);
+        }
+      }
     }
   }
 });
@@ -103,4 +116,12 @@ test('character and settings refresh reuse window with new dimensions', async ()
 test('cursor stopped/error hides character; resumed tracking shows it safely', async () => {
   const f = fixture(); await f.controller.start(); f.cursor.stop(); f.tick(); assert.equal(f.ports[0].visible, false);
   f.cursor.start(); f.tick(); assert.equal(f.ports[0].visible, true); f.controller.dispose(); f.cursor.dispose();
+});
+
+test('persisted hidden preference starts without a visible flash', async () => {
+  const f = fixture(); f.hideOnStartup();
+  assert.equal((await f.controller.start()).status, 'hidden');
+  assert.equal(f.ports[0].shows, 0); assert.equal(f.hasFrame(), false);
+  f.controller.show(); assert.equal(f.ports[0].shows, 1); assert.equal(f.hasFrame(), true);
+  f.controller.stop(); f.cursor.dispose();
 });

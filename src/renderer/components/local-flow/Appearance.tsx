@@ -1,18 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useLocalFlow } from '../../app/local-flow-context';
 import type { PreferencePatch } from '../../../shared/types/local-flow';
-function NumberPreference({ label, field, value, min, max, step = 1, save }: { label: string; field: string; value: number; min: number; max: number; step?: number; save(value: number): PreferencePatch }) {
-  const { busy, run } = useLocalFlow(); const [draft, setDraft] = useState(String(value));
-  useEffect(() => setDraft(String(value)), [value]);
-  return <label className="preference-row"><span>{label}</span><input data-preference={field} aria-label={label} type="number" min={min} max={max} step={step} value={draft} disabled={busy} onChange={event => setDraft(event.target.value)} onBlur={event => { if (event.target.value.trim() && event.target.checkValidity() && Number(draft) !== value) void run(() => window.animeCursor.flow.preferences(save(Number(draft)))); else if (!event.target.value.trim()) setDraft(String(value)); else if (!event.target.checkValidity()) { event.target.reportValidity(); setDraft(String(value)); } }} /></label>;
-}
-export function Appearance() {
-  const { snapshot } = useLocalFlow(); if (!snapshot) return null; const settings = snapshot.settings;
-  return <section className="preferences"><h2>Appearance</h2><p className="muted">Changes save when you leave a field.</p>
-    <NumberPreference label="Character size (px)" field="size" value={settings.characterSize} min={16} max={512} save={characterSize => ({ characterSize })} />
-    <NumberPreference label="Cursor distance — horizontal (px)" field="offset-x" value={settings.cursorOffset.x} min={-1000} max={1000} save={x => ({ cursorOffset: { ...settings.cursorOffset, x } })} />
-    <NumberPreference label="Cursor distance — vertical (px)" field="offset-y" value={settings.cursorOffset.y} min={-1000} max={1000} save={y => ({ cursorOffset: { ...settings.cursorOffset, y } })} />
-    <NumberPreference label="Opacity (%)" field="opacity" value={Math.round(settings.opacity * 100)} min={0} max={100} save={value => ({ opacity: value / 100 })} />
-    <NumberPreference label="Smoothing (%)" field="smoothing" value={Math.round(settings.smoothing * 100)} min={0} max={100} save={value => ({ smoothing: value / 100 })} />
-  </section>;
-}
+import { SectionHeader } from './Design';
+function Slider({label,description,field,value,min,max,unit,save}:{label:string;description:string;field:string;value:number;min:number;max:number;unit:string;save(value:number):PreferencePatch}){const {busy,run}=useLocalFlow();const [draft,setDraft]=useState(String(value));useEffect(()=>setDraft(String(value)),[value]);const commit=()=>{const v=Number(draft);if(draft.trim()&&Number.isFinite(v)&&v>=min&&v<=max&&v!==value)void run(()=>window.animeCursor.flow.preferences(save(v)));else setDraft(String(value));};
+return <div className="slider-row"><label htmlFor={field+'-slider'}><strong>{label}</strong><small>{description}</small></label><div className="slider-control"><input id={field+'-slider'} aria-label={label} type="range" min={min} max={max} value={draft||value} disabled={busy} onChange={e=>setDraft(e.target.value)} onPointerUp={commit} onKeyUp={commit} onBlur={commit}/><label className="numeric-value"><input aria-label={label+' exact value'} data-preference={field} type="number" min={min} max={max} value={draft} disabled={busy} onChange={e=>setDraft(e.target.value)} onBlur={commit}/><span>{unit}</span></label></div></div>;}
+export function Appearance(){const {snapshot}=useLocalFlow();if(!snapshot)return null;const s=snapshot.settings;return <section className="panel appearance"><SectionHeader icon="sparkle" title="Appearance" description="Adjust how your companion looks and behaves."/>
+<Slider label="Character Size" description="Adjust how large your companion appears." field="size" value={s.characterSize} min={16} max={512} unit="px" save={characterSize=>({characterSize})}/>
+<Slider label="Cursor Distance" description="Horizontal distance from your cursor." field="offset-x" value={s.cursorOffset.x} min={-1000} max={1000} unit="px" save={x=>({cursorOffset:{...s.cursorOffset,x}})}/>
+<Slider label="Opacity" description="Make the companion more or less visible." field="opacity" value={Math.round(s.opacity*100)} min={0} max={100} unit="%" save={v=>({opacity:v/100})}/>
+<Slider label="Movement Smoothing" description="Control how smoothly the character follows your cursor." field="smoothing" value={Math.round(s.smoothing*100)} min={0} max={100} unit="%" save={v=>({smoothing:v/100})}/>
+<details className="offset-details"><summary>Vertical cursor distance</summary><Slider label="Vertical Distance" description="Position above or below your cursor." field="offset-y" value={s.cursorOffset.y} min={-1000} max={1000} unit="px" save={y=>({cursorOffset:{...s.cursorOffset,y}})}/></details></section>;}
+

@@ -34,7 +34,7 @@ async function addPack(packs: string, pack = manifest(), folder = pack.id) {
 }
 function manager(root: string, packs: string, logs: string[]) {
   const log = (message: string) => logs.push(message);
-  const storage = new LocalSettingsStore(join(root, 'settings'));
+  const storage = new LocalSettingsStore(join(root, 'settings'), log);
   return new CharacterManager(new CharacterPackLoader(packs, 'windows', validateImage, log), storage, validateImage, 'fixture-primary', log);
 }
 test('exact 16 states; both diagonal states remain distinct', () => {
@@ -66,7 +66,7 @@ test('discovery loads real files at preserved names; resolves every state', asyn
     assert.equal(asset?.resolvedState, state); assert.equal(asset?.fallback, false);
     assert.equal(asset?.dataUrl, `data:image/png;base64,${png.toString('base64')}`);
   }
-  assert.deepEqual(logs, []);
+  assert.deepEqual(logs.filter(message => !message.startsWith('[storage]')), []);
 }));
 test('future packs require no manager changes; active selection persists after restart', async () => fixture(async (root, packs, logs) => {
   await addPack(packs); await addPack(packs, manifest('fixture-future'));
@@ -86,7 +86,7 @@ test('missing saved selection falls back deterministically; empty catalog safely
   assert.equal(service.getActiveCharacter()?.id, 'b-pack');
   await rm(join(packs, 'z-pack'), { recursive: true }); await rm(join(packs, 'b-pack'), { recursive: true });
   await service.initialize(); assert.equal(service.getActiveCharacter(), null);
-  assert.equal((await settings.read()).activeCharacterId, null);
+  assert.equal((await new LocalSettingsStore(join(root, 'settings')).read()).activeCharacterId, null);
 }));
 test('missing and corrupt runtime state assets log errors and fall back to normal', async () => fixture(async (root, packs, logs) => {
   const directory = await addPack(packs);
@@ -150,7 +150,7 @@ test('empty/missing root and corrupt stored settings do not crash initialization
   await addPack(packs); await mkdir(join(root, 'settings')); await writeFile(join(root, 'settings', 'settings.json'), 'broken');
   const service = manager(root, packs, logs); await service.initialize();
   assert.equal(service.getActiveCharacter()?.id, 'fixture-primary');
-  assert.ok(logs.some(log => log.includes('Settings could not be read')));
+  assert.ok(logs.some(log => log.includes('Invalid or empty settings JSON')));
 }));
 test('bounded file reader rejects oversized and empty files', async () => fixture(async (root) => {
   const path = join(root, 'bounded'); await writeFile(path, 'too large');

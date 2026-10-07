@@ -18,6 +18,7 @@ export class LocalAppFlow {
     catch (error) { console.error('[flow] Settings read failed', error); this.error = 'Local settings could not be read. Your existing file was preserved.'; }
     if (autoStart && !this.error && this.settings.onboardingCompleted && this.settings.companionEnabled && this.settings.startCompanionAutomatically) {
       const result = await this.companion.start();
+      if (!this.settings.companionVisible && ['running', 'hidden'].includes(result.status)) this.companion.hide();
       if (result.status === 'error') this.error = 'The companion could not start. Choose an available character and try Resume.';
     }
   }
@@ -43,15 +44,45 @@ export class LocalAppFlow {
     await this.persist({ ...this.settings, companionEnabled: true });
     const result = await this.companion.start();
     if (!['running', 'hidden'].includes(result.status)) { await this.persist({ ...this.settings, companionEnabled: false }); throw new Error('Unable to start the companion. Check the selected character and try again.'); }
+    if (!this.settings.companionVisible) this.companion.hide();
   }
-  completeOnboarding(): Promise<LocalFlowSnapshot> { return this.operation(async () => { await this.resume(); await this.persist({ ...this.settings, onboardingCompleted: true }); this.page = 'home'; return this.getSnapshot(); }); }
+  private async onboardingCharacter(preferAiko = true): Promise<void> {
+    // Aiko is the setup default; CharacterManager still owns validation and persistence.
+    const aiko = this.characters.getCatalog().characters.find(pack => pack.id === 'aiko');
+    if (aiko && (preferAiko || !this.characters.getActiveCharacter()) && this.characters.getCatalog().activeCharacterId !== aiko.id) {
+      await this.characters.setActiveCharacter(aiko.id); this.settings = await this.storage.read();
+      await this.companion.refresh();
+    } else if (!this.settings.activeCharacterId && this.characters.getActiveCharacter()) {
+      await this.characters.setActiveCharacter(this.characters.getActiveCharacter()!.id); this.settings = await this.storage.read();
+    }
+  }
+  completeOnboarding(): Promise<LocalFlowSnapshot> { return this.operation(async () => { await this.onboardingCharacter(); await this.resume(); await this.persist({ ...this.settings, onboardingCompleted: true }); this.page = 'home'; return this.getSnapshot(); }); }
+  skipOnboarding(): Promise<LocalFlowSnapshot> {
+    return this.operation(async () => {
+      await this.onboardingCharacter(false);
+      await this.persist({ ...this.settings, onboardingCompleted: true }); this.page = 'home';
+      if (this.settings.startCompanionAutomatically && this.characters.getActiveCharacter()) await this.resume();
+      return this.getSnapshot();
+    });
+  }
+  restartOnboarding(): Promise<LocalFlowSnapshot> {
+    return this.operation(async () => {
+      await this.persist({ ...this.settings, onboardingCompleted: false });
+      this.companion.stop(); this.page = 'home'; return this.getSnapshot();
+    });
+  }
   action(action: CompanionAction): Promise<LocalFlowSnapshot> {
     return this.operation(async () => {
       if (action === 'pause') { this.companion.stop(); await this.persist({ ...this.settings, companionEnabled: false }); }
       else if (action === 'resume') await this.resume();
       else if (action === 'hide' || action === 'show') {
         if (!this.settings.companionEnabled || !this.companion.isActive()) throw new Error('Resume the companion before changing its visibility.');
-        if (action === 'hide') this.companion.hide(); else this.companion.show();
+        const visible = action === 'show';
+        const before = this.settings;
+        this.settings = validateSettings({ ...this.settings, companionVisible: visible });
+        if (visible) this.companion.show(); else this.companion.hide();
+        try { await this.persist(this.settings); }
+        catch (error) { this.settings = before; if (before.companionVisible) this.companion.show(); else this.companion.hide(); throw error; }
       } else throw new Error('Unknown companion action');
       return this.getSnapshot();
     });
@@ -60,10 +91,19 @@ export class LocalAppFlow {
     return this.operation(async () => {
       const keys = ['characterSize', 'cursorOffset', 'opacity', 'smoothing', 'startCompanionAutomatically', 'startMinimized'];
       if (!input || typeof input !== 'object' || Object.keys(input).some(key => !keys.includes(key))) throw new Error('Invalid preference change');
-      await this.persist(validateSettings({ ...this.settings, ...input })); await this.companion.refresh(); return this.getSnapshot();
+      const before = this.settings;
+      const next = validateSettings({ ...this.settings, ...input });
+      this.settings = next; this.notify();
+      const persistence = this.characters.saveSettings(next).then(saved => ({ saved }), error => ({ error }));
+      try {
+        // The store's validated memory cache is immediately available to the overlay.
+        await Promise.resolve(); await this.companion.refresh();
+        const result = await persistence; if ('error' in result) throw result.error;
+        this.settings = result.saved; return this.getSnapshot();
+      } catch (error) { this.settings = before; await this.companion.refresh(); throw error; }
     });
   }
-  replaceSettings(input: unknown): Promise<AppSettings> { return this.operation(async () => { const before = this.settings.companionEnabled; await this.persist(validateSettings(input)); if (!this.settings.companionEnabled) this.companion.stop(); else if (!before) await this.resume(); await this.companion.refresh(); return structuredClone(this.settings); }); }
+  replaceSettings(input: unknown): Promise<AppSettings> { return this.operation(async () => { const before = this.settings.companionEnabled; await this.persist(validateSettings(input)); if (!this.settings.companionEnabled) this.companion.stop(); else if (!before) await this.resume(); if (this.companion.isActive()) { if (this.settings.companionVisible) this.companion.show(); else this.companion.hide(); } await this.companion.refresh(); return structuredClone(this.settings); }); }
   externalCharacterChanged(): Promise<unknown> { return this.operation(async () => { this.settings = await this.storage.read(); await this.companion.refresh(); return this.getSnapshot(); }); }
   dispose(): void { this.listeners.clear(); }
   async prepareQuit(): Promise<void> { this.closing = true; await this.queue; }

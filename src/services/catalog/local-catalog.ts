@@ -31,6 +31,6 @@ export class LocalCatalogService {
   buy(id: string): string {
     const product = this.products.find(product => product.id === id);
     if (!product || product.isFree || product.installed) throw new Error('This local product has no mock purchase action.');
-    return 'Purchases will be available soon. No payment was made.';
+    return 'Purchases coming soon';
   }
 }

@@ -27,7 +27,7 @@ export class WindowsSemanticCursorAdapter implements SemanticCursorAdapter {
           const record: unknown = JSON.parse(line);
           if (!record || typeof record !== 'object' || !('id' in record) || !('ok' in record) || typeof record.ok !== 'boolean') throw new Error('Invalid sample');
           const state = resourceState(record.id);
-          if (!record.ok && this.sample.error !== 'GetCursorInfo failed') this.log('[state] GetCursorInfo failed; using normal');
+          if (!record.ok && this.sample.error !== 'GetCursorInfo failed') this.log('[state] GetCursorInfo failed; using extra');
           this.sample = { state, reliable: record.ok && state !== null, source: record.ok && state ? 'windows-standard-cursor' : 'windows-unknown-cursor', timestamp: this.now(), error: record.ok ? null : 'GetCursorInfo failed' };
         } catch { this.fail('Invalid native helper sample'); return; }
       }
@@ -42,5 +42,5 @@ export class WindowsSemanticCursorAdapter implements SemanticCursorAdapter {
     return { ...this.sample };
   }
   stop(): void { const child = this.child; this.child = null; child?.kill(); this.buffer = ''; this.sample = { state: null, reliable: false, source: 'windows-stopped', timestamp: this.now(), error: null }; }
-  private fail(error: string): void { this.stop(); this.sample.error = error; this.sample.source = 'windows-error'; this.log(`[state] ${error}; using normal`); }
+  private fail(error: string): void { this.stop(); this.sample.error = error; this.sample.source = 'windows-error'; this.log(`[state] ${error}; using extra`); }
 }

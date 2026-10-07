@@ -1,6 +1,6 @@
 # Anime Cursor
 
-Phase 1, Steps 1 through 6: offline desktop foundation, local character assets, real OS cursor tracking, transparent overlay the 16-state cursor engine and local application flow. Electron main, bundled sandbox-compatible preload, React renderer, shared settings types, and local storage are separate modules.
+Phase 1, Steps 1 through 10: offline desktop foundation, local character assets, real OS cursor tracking, transparent overlay the 16-state cursor engine and local application flow. Electron main, bundled sandbox-compatible preload, React renderer, shared settings types, and local storage are separate modules.
 
 ## Commands
 
@@ -16,9 +16,9 @@ Phase 1, Steps 1 through 6: offline desktop foundation, local character assets, 
 - `npm run check:storage` verifies persistence and settings validation in a temporary directory.
 - `npm run smoke` opens the production window, checks React/preload/renderer isolation, then exits.
 
-No lint configuration exists. Installer packaging, signing, and macOS runtime validation remain future work; this build is application output, not a distributable installer.
+No lint configuration exists. Windows portable packaging uses the existing Electron runtime: run npm run build, then node scripts/package-windows.mjs. Open release/AnimeCursor-win32-x64/AnimeCursor.exe with the complete folder intact. This is an unsigned portable application, not an installer; code signing and macOS runtime validation remain unavailable. See PHASE_A_TESTING.md for the final QA matrix and limitations.
 
-Settings persist as validated JSON under Electron's per-user `userData/settings/settings.json`, through a serialized, atomic-write service. Missing files use defaults; malformed files report an error rather than silently erasing user data. First launch shows onboarding. Completing onboarding saves the selected character and enabled state. Later launches automatically start the companion only when onboarding is complete, companionEnabled is true and automatic start is enabled. Start minimized is an application launch preference, not Windows login startup.
+Settings persist as validated JSON under Electron's per-user `userData/settings/settings.json`, through a serialized, atomic-write service. Schema version 1 wraps the shared AppSettings model. Missing files receive defaults; legacy, empty, malformed and partial documents are repaired field by field. Original documents are preserved as settings.recovered-*.json, and settings.json.bak keeps the preceding successful commit for malformed-JSON recovery. Valid values survive repair. The authoritative main-process memory cache applies validated appearance changes immediately; writes are serialized, flushed and atomically renamed. First launch shows exactly three onboarding screens. Start Companion selects Aiko, saves completion and opens Home. Skip Setup also saves completion and opens Home; it preserves an existing selection and starts the companion when automatic startup is enabled. Settings > Restart Setup explicitly resets completion, stops the overlay during setup, and opens screen 1 while preserving appearance preferences. Later launches automatically start the companion only when onboarding is complete, companionEnabled is true and automatic start is enabled. Start minimized is an application launch preference, not Windows login startup.
 
 Windows/macOS cursor adapters and overlay are implemented. A shared Electron TrayAdapter provides Windows tray and macOS status-item actions. OS login startup remains unavailable. No cursor icon is changed, hidden, replaced, or drawn.
 
@@ -62,7 +62,7 @@ See [STEP4-REPORT.md](STEP4-REPORT.md) for the original overlay implementation a
 
 ## 16-state cursor engine
 
-Windows matches the global cursor handle from GetCursorInfo to predefined handles from LoadCursorW. A small read-only C# helper samples semantics every 50 ms, reporting changes plus a one-second heartbeat; its position fields are ignored. Electron remains the sole cursor-position source. Unknown/custom/ambiguous/hidden cursors and native failures use normal. Mac semantic detection currently returns normal without guessing. All 16 states remain available through development overrides.
+Windows matches the global cursor handle from GetCursorInfo to predefined handles from LoadCursorW. A small read-only C# helper samples semantics every 50 ms, reporting changes plus a one-second heartbeat; its position fields are ignored. Electron remains the sole cursor-position source. Recognized native cursors use their matching state; only the recognized default arrow uses normal. Unknown/custom/ambiguous/hidden cursors, stale samples and native failures use extra. Mac semantic detection currently supplies no reliable native classification, so it uses extra without guessing. All 16 states remain available through development overrides.
 
 On Windows, `build:electron` also compiles `src/platform/windows/native/CursorContext.cs` to `dist/native/windows/cursor-context.exe` using the installed .NET Framework 4.x compiler. No npm native dependency or network operation is added. Windows runtime needs .NET Framework 4.x; future installer packaging must ship the helper outside an ASAR archive.
 
@@ -85,9 +85,15 @@ Pause stops/destroys the companion overlay and semantic engine, and saves compan
 
 The local Store has installed packs plus two clearly marked premium concepts with no artwork. Search, filters and details work locally. Buy displays "Purchases will be available soon. No payment was made." There are no accounts, payments, downloads or entitlements. All 16 detail state names use CURSOR_STATES.
 
-Close hides the main window and leaves the tray and enabled companion alive. Tray actions reopen the app, show/hide or pause/resume the companion, change installed characters, open Settings, and Quit. Explicit Quit drains accepted settings writes and cleans up services/resources. Hide is temporary; it is not restored across launches. Navigation returns to Home on launch.
+Close hides the main window and leaves the tray and enabled companion alive. Tray actions reopen the app, show/hide or pause/resume the companion, change installed characters, open Settings, and Quit. Explicit Quit drains accepted settings writes and cleans up services/resources. Hide/Show survives launches as companionVisible. Pause/Resume persists companionEnabled and its canonical inverse companionPaused; resuming a previously hidden companion keeps it hidden. Hidden startup never shows the overlay window. Navigation returns to Home on launch.
 
 - `npm run test:flow`: local-flow, migration, persistence, catalog, failure and cleanup unit checks.
-- `npm run check:flow`: builds, then runs three isolated production Electron launches with network disabled. Exercises onboarding, UI controls, tray callbacks, close/reopen, appearance/selection persistence, enabled/paused relaunch and explicit Quit. A temporary second pack proves generic selection; it never enters the shipped catalog. Screenshots/results go to `dist/validation/`.
+- `npm run check:flow`: builds, then runs five isolated production Electron launches with network disabled. Exercises onboarding, UI controls, tray callbacks, close/reopen, appearance/selection persistence, enabled/paused relaunch and explicit Quit. A temporary second pack proves generic selection; it never enters the shipped catalog. Screenshots/results go to `dist/validation/`.
 
 See [STEP6-REPORT.md](STEP6-REPORT.md) for implementation files, validation evidence and remaining platform checks. Stop at Step 6; Step 7 is not implemented.
+
+Step 8 persists onboarding completion, activeCharacterId, companionEnabled/Visible/Paused, characterSize, cursorOffset x/y, opacity, smoothing, startCompanionAutomatically and startMinimized. Installed manifests remain the character source of truth; no PNG bytes, cursor coordinates, semantic cursor states, handles or runtime/debug objects enter settings. Disk migration lives in src/services/storage/app-state.ts. Storage and Electron validation use temporary profiles and do not modify real userData. No network service or dependency was added.
+
+Step 9 completes the local Character Store: All/Featured/Free/Premium/Installed filters, case-insensitive search, sorting, installed character activation, locked concept cards and a product panel with all 16 original Aiko state previews. Every premium Buy opens the same Purchases coming soon dialog and leaves catalog ownership and persisted preferences unchanged. `npm run check:flow` includes network-disabled Store QA, all premium card/detail Buy buttons, zero HTTP/HTTPS requests or checkout windows, original PNG comparisons, three responsive sizes and an empty-installed-catalog fixture. See STEP9-REPORT.md for details.
+
+Production HTML uses connect-src none and contains no development-server address. The Vite development policy is unchanged. The Windows packaged QA script pauses the executable using Electron's stock Node inspector, injects an isolated temporary userData path before startup, and tests the unchanged packaged application offline; it adds no production test API. Run node scripts/test-packaged-windows.mjs for packaged QA, or append --development while Vite is running to check the development code path.

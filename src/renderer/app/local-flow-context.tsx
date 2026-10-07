@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import type { LocalFlowSnapshot, LocalProduct } from '../../shared/types/local-flow';
+import { PurchaseNotice } from '../components/local-flow/PurchaseNotice';
 interface FlowView { snapshot: LocalFlowSnapshot | null; products: LocalProduct[]; busy: boolean; error: string; message: string; run(work: () => Promise<LocalFlowSnapshot>): Promise<void>; buy(id: string): Promise<void> }
 const Context = createContext<FlowView | null>(null);
 export function LocalFlowProvider({ children }: { children: ReactNode }) {
@@ -23,6 +24,6 @@ export function LocalFlowProvider({ children }: { children: ReactNode }) {
     finally { ++revision.current; pending.current = false; setBusy(false); }
   };
   const buy = async (id: string) => { try { setMessage(await window.animeCursor.flow.buy(id)); } catch { setError('This product is not available for a mock purchase.'); } };
-  return <Context.Provider value={{ snapshot, products, busy, error, message, run, buy }}>{children}</Context.Provider>;
+  return <Context.Provider value={{ snapshot, products, busy, error, message, run, buy }}>{children}{message&&<PurchaseNotice close={()=>setMessage('')}/>}</Context.Provider>;
 }
 export function useLocalFlow(): FlowView { const context = useContext(Context); if (!context) throw new Error('Local flow provider missing'); return context; }

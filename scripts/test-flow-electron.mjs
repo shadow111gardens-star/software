@@ -12,7 +12,12 @@ try {
   manifest.id = 'test-future'; manifest.name = 'Future pack (temporary test fixture)';
   await writeFile(join(profile, 'characters/test-future/manifest.json'), JSON.stringify(manifest));
   const env = { ...process.env }; delete env.ELECTRON_RUN_AS_NODE;
-  for (const phase of ['first', 'restart', 'paused']) {
+  for (const phase of ['onboarding', 'onboarding-restart', 'first', 'restart', 'paused', 'store-empty']) {
+    if (phase === 'store-empty') {
+      const characters = resolve(profile, 'characters');
+      if (!characters.startsWith(resolve(temporary) + sep)) throw new Error('Unsafe fixture path');
+      await rm(characters, { recursive: true, force: true }); await mkdir(characters);
+    }
     const code = await new Promise((accept, reject) => {
       const child = spawn(electron, ['.', `--flow-check=${phase}`, `--flow-profile=${profile}`], { env, stdio: 'inherit', windowsHide: true });
       const timeout = setTimeout(() => { child.kill(); reject(new Error(`Flow ${phase} timed out`)); }, 90000);

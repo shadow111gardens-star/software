@@ -6,6 +6,6 @@ export interface CursorContext {
   movement: { dx: number; dy: number; distance: number; speed: number };
   trackingStatus: CursorTrackingStatus; semantic: SemanticCursorSample; timestamp: number;
 }
-export interface StateSnapshot { state: CursorState; source: string; override: CursorState | null; context: CursorContext | null }
+export interface StateSnapshot { state: CursorState; detectedState: CursorState; reason: string; source: string; override: CursorState | null; context: CursorContext | null }
 export interface StateDebugAPI { getSnapshot(): Promise<StateSnapshot | null>; setOverride(state: CursorState | null): Promise<StateSnapshot> }
 export interface SemanticCursorAdapter { start(): void; stop(): void; getSample(): SemanticCursorSample }
