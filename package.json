@@ -22,7 +22,8 @@
     "smoke:state": "node scripts/run-electron.mjs --state-smoke",
     "check:state": "npm run build && node scripts/run-electron.mjs --state-check",
     "test:flow": "node scripts/test-flow.mjs",
-    "check:flow": "npm run build && node scripts/test-flow-electron.mjs"
+    "check:flow": "npm run build && node scripts/test-flow-electron.mjs",
+    "dist": "electron-builder"
   },
   "keywords": [],
   "author": "",
@@ -38,6 +39,7 @@
     "@types/react-dom": "^19.3.0",
     "concurrently": "^10.0.5",
     "electron": "^44.5.1",
+    "electron-builder": "26.15.3",
     "esbuild": "^0.28.2",
     "typescript": "^7.0.2",
     "vite": "^8.3.3",

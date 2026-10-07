@@ -1,0 +1,64 @@
+name: Build Desktop
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ matrix.artifact }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: win
+            arch: x64
+            artifact: AnimeCursor-Windows-x64
+            files: release/AnimeCursor-Setup-*.exe
+          - os: macos-latest
+            platform: mac
+            arch: x64
+            artifact: AnimeCursor-macOS-x64
+            files: release/AnimeCursor-*-x64.dmg
+          - os: macos-latest
+            platform: mac
+            arch: arm64
+            artifact: AnimeCursor-macOS-arm64
+            files: release/AnimeCursor-*-arm64.dmg
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Unit and storage tests
+        run: npm test
+      - name: Electron tests
+        run: npm run test:electron
+      - name: Production build
+        run: npm run build
+      - name: Package desktop application
+        run: npm run dist -- --${{ matrix.platform }} --${{ matrix.arch }} --publish never
+      - name: Upload desktop installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.files }}
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0

@@ -1,5 +1,7 @@
 # Anime Cursor
 
+Step 11 adds Windows NSIS and macOS DMG packaging with the **Build Desktop** GitHub Actions workflow. See [DESKTOP_BUILDS.md](DESKTOP_BUILDS.md) for commands, artifacts, validation and unsigned development build limitations.
+
 Phase 1, Steps 1 through 10: offline desktop foundation, local character assets, real OS cursor tracking, transparent overlay the 16-state cursor engine and local application flow. Electron main, bundled sandbox-compatible preload, React renderer, shared settings types, and local storage are separate modules.
 
 ## Commands

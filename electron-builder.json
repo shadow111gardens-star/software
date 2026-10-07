@@ -1,0 +1,40 @@
+{
+  "appId": "com.animecursor.desktop",
+  "productName": "Anime Cursor",
+  "directories": { "output": "release" },
+  "asar": false,
+  "npmRebuild": false,
+  "publish": null,
+  "files": [
+    "dist/electron/*.cjs",
+    "dist/renderer/**/*",
+    "dist/assets/characters/**/*",
+    "dist/native/windows/cursor-context.exe",
+    "package.json",
+    "!release/**/*",
+    "!dist/validation/**/*",
+    "!**/*.log",
+    "!**/*.map"
+  ],
+  "win": {
+    "target": [{ "target": "nsis", "arch": ["x64"] }],
+    "executableName": "AnimeCursor",
+    "signExecutable": false
+  },
+  "nsis": {
+    "artifactName": "AnimeCursor-Setup-${version}.${ext}",
+    "oneClick": false,
+    "perMachine": false,
+    "allowToChangeInstallationDirectory": true,
+    "deleteAppDataOnUninstall": false
+  },
+  "mac": {
+    "target": [{ "target": "dmg", "arch": ["x64", "arm64"] }],
+    "artifactName": "AnimeCursor-${version}-${arch}.${ext}",
+    "category": "public.app-category.utilities",
+    "identity": null,
+    "hardenedRuntime": false,
+    "gatekeeperAssess": false,
+    "notarize": false
+  }
+}
